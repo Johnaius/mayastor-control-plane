@@ -34,7 +34,7 @@ use std::{
 };
 use tokio::net::UnixListener;
 use tokio_stream::wrappers::UnixListenerStream;
-use tonic::transport::Server;
+use tonic::transport::{Server, Uri};
 use tracing::{debug, error, info};
 
 const GRPC_PORT: u16 = 50051;
@@ -352,11 +352,32 @@ pub(super) async fn main() -> anyhow::Result<()> {
         }
     }
 
-    // Initialize the rest api client.
-    let client = AppNodesClientWrapper::initialize(
-        matches.get_one::<String>("rest-endpoint"),
-        matches.get_one::<PathBuf>("tls-client-ca-path"),
-    )?;
+    // Initialize the REST API client.
+    let rest_endpoint = matches.get_one::<String>("rest-endpoint");
+    let tls_client_ca_path = matches.get_one::<PathBuf>("tls-client-ca-path");
+
+    let client = if let Some(rest_endpoint) = rest_endpoint {
+        let uri = rest_endpoint.parse::<Uri>().expect("Invalid URI");
+        let scheme_str = uri.scheme_str().unwrap_or("http");
+
+        match (scheme_str, tls_client_ca_path) {
+            ("https", Some(ca_path)) => {
+                AppNodesClientWrapper::initialize(Some(rest_endpoint), Some(ca_path))
+            }
+            ("https", None) => {
+                anyhow::bail!("HTTPS scheme requires a CA certificate path (--tls-client-ca-path) to be provided.");
+            }
+            ("http", Some(_)) => {
+                anyhow::bail!("CA certificate path provided but scheme is not HTTPS.");
+            }
+            ("http", None) => AppNodesClientWrapper::initialize(Some(rest_endpoint), None),
+            (other, _) => {
+                anyhow::bail!("Unsupported URI scheme: {}", other);
+            }
+        }
+    } else {
+        AppNodesClientWrapper::initialize(None, None)
+    }?;
 
     let registration_enabled = matches.get_flag("enable-registration");
 

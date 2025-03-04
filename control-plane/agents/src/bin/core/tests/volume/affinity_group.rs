@@ -1,6 +1,9 @@
 use deployer_cluster::{Cluster, ClusterBuilder};
 use grpc::operations::{registry::traits::RegistryOperations, volume::traits::VolumeOperations};
-use stor_port::types::v0::transport::{AffinityGroup, CreateVolume, GetSpecs, VolumeId};
+use stor_port::{
+    transport_api::ContextOptions,
+    types::v0::transport::{AffinityGroup, CreateVolume, GetSpecs, VolumeId},
+};
 use tracing::info;
 
 #[tokio::test]
@@ -49,7 +52,7 @@ async fn startup_test(cluster: &Cluster) {
 
     // Wait for the core-agent grpc to come up.
     cluster
-        .node_service_liveness(None)
+        .node_service_liveness(ContextOptions::new(None, None))
         .await
         .expect("Should have restarted by now");
 

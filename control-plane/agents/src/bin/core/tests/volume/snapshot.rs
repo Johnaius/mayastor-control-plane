@@ -366,7 +366,7 @@ async fn snapshot_timeout() {
     assert_eq!(tx[0].status().to_string().as_str(), "Created");
 
     let grpc = cluster
-        .new_grpc_client(grpc_timeout_opts(req_timeout))
+        .new_grpc_client(Some(grpc_timeout_opts(req_timeout)))
         .await;
     let vol_cli_req = grpc.volume();
     let volume = vol_cli_req

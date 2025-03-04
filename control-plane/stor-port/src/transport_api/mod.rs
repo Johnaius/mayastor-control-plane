@@ -474,6 +474,27 @@ impl From<tonic::Code> for ReplyErrorKind {
 /// Save on typing.
 pub type DynClient = Box<dyn ClientOpts>;
 
+#[derive(Clone, Debug, Default)]
+/// Options for configuring the context.
+pub struct ContextOptions {
+    /// Timeout options for the context.
+    pub timeout_options: Option<TimeoutOptions>,
+
+    /// TLS client options for the context.
+    pub tls_client_options: Option<TlsClientOptions>,
+}
+
+impl ContextOptions {
+    /// Returns the timeout options for the context.
+    pub fn timeout_options(&self) -> Option<TimeoutOptions> {
+        self.timeout_options.clone()
+    }
+
+    /// Returns the client options for the context.
+    pub fn tls_client_options(&self) -> Option<TlsClientOptions> {
+        self.tls_client_options.clone()
+    }
+}
 /// Timeout for receiving a reply to a request message
 /// Max number of retries until it gives up.
 #[derive(Clone, Debug)]
@@ -500,6 +521,20 @@ pub struct TimeoutOptions {
     keep_alive_timeout: std::time::Duration,
 
     client: ClientId,
+}
+
+#[derive(Clone, Debug, Default)]
+/// Options for configuring TLS client.
+pub struct TlsClientOptions {
+    /// Path to the CA certificate.
+    pub ca_cert_path: String,
+}
+
+impl TlsClientOptions {
+    /// Creates a new `TlsClientOptions` with the specified CA certificate path.
+    pub fn new(ca_cert_path: String) -> Result<Self, std::io::Error> {
+        Ok(Self { ca_cert_path })
+    }
 }
 
 /// Request specific minimum timeouts.
@@ -562,6 +597,39 @@ impl RequestMinTimeout {
     /// Minimum timeout for nvme reconnect.
     pub fn nvme_reconnect(&self) -> Duration {
         self.nvme_reconnect
+    }
+}
+
+impl ContextOptions {
+    /// Creates a new `ContextOptions` with the specified timeout and TLS client options.
+    pub fn new(
+        timeout_opts: Option<TimeoutOptions>,
+        tls_client_opts: Option<TlsClientOptions>,
+    ) -> Self {
+        Self {
+            timeout_options: timeout_opts,
+            tls_client_options: tls_client_opts,
+        }
+    }
+
+    /// Sets the timeout options for the context.
+    ///
+    /// # Arguments
+    ///
+    /// * `timeout` - The timeout options to set.
+    pub fn with_timeout_opts(mut self, timeout: TimeoutOptions) -> Self {
+        self.timeout_options = Some(timeout);
+        self
+    }
+
+    /// Sets the TLS client options for the context.
+    ///
+    /// # Arguments
+    ///
+    /// * `tls` - The TLS client options to set.
+    pub fn with_tls_opts(mut self, tls: TlsClientOptions) -> Self {
+        self.tls_client_options = Some(tls);
+        self
     }
 }
 

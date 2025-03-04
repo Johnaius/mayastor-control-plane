@@ -3,7 +3,10 @@ use crate::{
     infra::{async_trait, Builder, ComponentAction, ComposeTest, CoreAgent, Error, StartOptions},
 };
 use composer::{Binary, ContainerSpec};
-use grpc::operations::node::traits::NodeOperations;
+use grpc::{
+    context::{ContextOptions, TimeoutOptions},
+    operations::node::traits::NodeOperations,
+};
 use std::str::FromStr;
 use stor_port::types::v0::transport::{Filter, NodeStatus};
 
@@ -81,15 +84,22 @@ impl ComponentAction for CoreAgent {
     }
     async fn wait_on(&self, _options: &StartOptions, cfg: &ComposeTest) -> Result<(), Error> {
         let ip = cfg.container_ip("core");
-        let uri = tonic::transport::Uri::from_str(&format!("https://{ip}:50051")).unwrap();
-        let timeout = grpc::context::TimeoutOptions::new()
-            .with_req_timeout(std::time::Duration::from_millis(100));
-        let core =
-            grpc::client::CoreClient::new(uri, Some(timeout.with_max_retries(Some(10)))).await;
-        core.wait_ready(None).await.map_err(|_| {
-            let error = "Failed to wait for core to get ready";
-            std::io::Error::new(std::io::ErrorKind::TimedOut, error)
-        })?;
+        let uri = tonic::transport::Uri::from_str(&format!("http://{ip}:50051")).unwrap();
+        let opts = ContextOptions {
+            timeout_options: Some(
+                TimeoutOptions::new()
+                    .with_req_timeout(std::time::Duration::from_millis(100))
+                    .with_max_retries(Some(10)),
+            ),
+            tls_client_options: None,
+        };
+        let core = grpc::client::CoreClient::new(uri, opts).await;
+        core.wait_ready(ContextOptions::default())
+            .await
+            .map_err(|_| {
+                let error = "Failed to wait for core to get ready";
+                std::io::Error::new(std::io::ErrorKind::TimedOut, error)
+            })?;
 
         Ok(())
     }
@@ -99,12 +109,17 @@ impl CoreAgent {
     /// Wait for a node to become online.
     pub(crate) async fn wait_node_online(cfg: &ComposeTest, node: &str) {
         let ip = cfg.container_ip("core");
-        let uri = tonic::transport::Uri::from_str(&format!("https://{ip}:50051")).unwrap();
+        let uri = tonic::transport::Uri::from_str(&format!("http://{ip}:50051")).unwrap();
 
-        let timeout = grpc::context::TimeoutOptions::new()
-            .with_req_timeout(std::time::Duration::from_millis(100));
-        let core =
-            grpc::client::CoreClient::new(uri, Some(timeout.with_max_retries(Some(10)))).await;
+        let opts = ContextOptions {
+            timeout_options: Some(
+                TimeoutOptions::new()
+                    .with_req_timeout(std::time::Duration::from_millis(100))
+                    .with_max_retries(Some(10)),
+            ),
+            tls_client_options: None,
+        };
+        let core = grpc::client::CoreClient::new(uri, opts).await;
 
         loop {
             let filter = Filter::Node(node.into());

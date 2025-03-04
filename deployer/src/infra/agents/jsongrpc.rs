@@ -5,7 +5,7 @@ use crate::{
     },
 };
 use composer::Binary;
-use grpc::operations::jsongrpc::client::JsonGrpcClient;
+use grpc::{context::ContextOptions, operations::jsongrpc::client::JsonGrpcClient};
 use std::str::FromStr;
 
 #[async_trait]
@@ -40,11 +40,18 @@ impl ComponentAction for JsonGrpcAgent {
         let uri = tonic::transport::Uri::from_str(&format!("https://{ip}:50052")).unwrap();
         let timeout = grpc::context::TimeoutOptions::new()
             .with_req_timeout(std::time::Duration::from_millis(5));
-        let json_grpc = JsonGrpcClient::new(uri, Some(timeout.with_max_retries(Some(10)))).await;
-        json_grpc.wait_ready(None).await.map_err(|_| {
-            let error = "Failed to wait for jsongrpc service to get ready";
-            std::io::Error::new(std::io::ErrorKind::TimedOut, error)
-        })?;
+        let json_grpc = JsonGrpcClient::new(
+            uri,
+            ContextOptions::new(Some(timeout.with_max_retries(Some(10))), None),
+        )
+        .await;
+        json_grpc
+            .wait_ready(ContextOptions::default())
+            .await
+            .map_err(|_| {
+                let error = "Failed to wait for jsongrpc service to get ready";
+                std::io::Error::new(std::io::ErrorKind::TimedOut, error)
+            })?;
         Ok(())
     }
 }

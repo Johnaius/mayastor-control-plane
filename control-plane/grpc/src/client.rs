@@ -12,7 +12,7 @@ use crate::{
     },
 };
 use std::time::Duration;
-use stor_port::transport_api::TimeoutOptions;
+use stor_port::transport_api::{ContextOptions, TimeoutOptions};
 use tonic::transport::Uri;
 
 /// CoreClient encapsulates all the individual clients needed for gRPC transport
@@ -29,16 +29,15 @@ pub struct CoreClient {
 
 impl CoreClient {
     /// generates a new CoreClient to get the individual clients
-    pub async fn new<O: Into<Option<TimeoutOptions>>>(addr: Uri, opts: O) -> Self {
-        let timeout_opts = opts.into();
-        let pool_client = PoolClient::new(addr.clone(), timeout_opts.clone()).await;
-        let replica_client = ReplicaClient::new(addr.clone(), timeout_opts.clone()).await;
-        let volume_client = VolumeClient::new(addr.clone(), timeout_opts.clone()).await;
-        let node_client = NodeClient::new(addr.clone(), timeout_opts.clone()).await;
-        let app_node_client = AppNodeClient::new(addr.clone(), timeout_opts.clone()).await;
-        let registry_client = RegistryClient::new(addr.clone(), timeout_opts.clone()).await;
-        let nexus_client = NexusClient::new(addr.clone(), timeout_opts.clone()).await;
-        let watch_client = WatchClient::new(addr, timeout_opts).await;
+    pub async fn new<O: Into<ContextOptions> + Clone>(addr: Uri, opts: O) -> Self {
+        let pool_client = PoolClient::new(addr.clone(), opts.clone()).await;
+        let replica_client = ReplicaClient::new(addr.clone(), opts.clone()).await;
+        let volume_client = VolumeClient::new(addr.clone(), opts.clone()).await;
+        let node_client = NodeClient::new(addr.clone(), opts.clone()).await;
+        let app_node_client = AppNodeClient::new(addr.clone(), opts.clone()).await;
+        let registry_client = RegistryClient::new(addr.clone(), opts.clone()).await;
+        let nexus_client = NexusClient::new(addr.clone(), opts.clone()).await;
+        let watch_client = WatchClient::new(addr, opts).await;
         Self {
             pool: pool_client,
             replica: replica_client,
@@ -83,17 +82,19 @@ impl CoreClient {
         self.watch.clone()
     }
     /// Try to wait until the Core Agent is ready, up to a timeout, by using the Probe method.
-    pub async fn wait_ready(&self, timeout_opts: Option<TimeoutOptions>) -> Result<(), ()> {
-        let timeout_opts = match timeout_opts {
+    pub async fn wait_ready<O: Into<ContextOptions>>(&self, opts: O) -> Result<(), ()> {
+        let mut context_opts: ContextOptions = opts.into();
+        let timeout_opts = match context_opts.timeout_options() {
             Some(opts) => opts,
             None => TimeoutOptions::new()
                 .with_req_timeout(Duration::from_millis(250))
                 .with_max_retries(10),
         };
+        context_opts = context_opts.with_timeout_opts(timeout_opts.clone());
         for attempt in 1..=timeout_opts.max_retries().unwrap_or_default() {
             match self
                 .volume
-                .probe(Some(Context::new(Some(timeout_opts.clone()))))
+                .probe(Some(Context::new(context_opts.clone())))
                 .await
             {
                 Ok(true) => return Ok(()),
@@ -104,11 +105,7 @@ impl CoreClient {
                 }
             }
         }
-        match self
-            .volume
-            .probe(Some(Context::new(Some(timeout_opts.clone()))))
-            .await
-        {
+        match self.volume.probe(Some(Context::new(context_opts))).await {
             Ok(true) => Ok(()),
             _ => {
                 tracing::error!("Timed out");

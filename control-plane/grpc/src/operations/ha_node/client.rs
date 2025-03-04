@@ -9,7 +9,7 @@ use crate::{
 };
 use std::ops::Deref;
 use stor_port::{
-    transport_api::{v0::NvmeSubsystems, ReplyError, ResourceKind, TimeoutOptions},
+    transport_api::{v0::NvmeSubsystems, ContextOptions, ReplyError, ResourceKind},
     types::v0::transport::{FailedPathsResponse, MessageIdVs},
 };
 use tonic::transport::Uri;
@@ -21,7 +21,7 @@ pub struct ClusterAgentClient {
 
 impl ClusterAgentClient {
     /// creates a new base tonic endpoint with the timeout options and the address
-    pub async fn new<O: Into<Option<TimeoutOptions>>>(addr: Uri, opts: O) -> Self {
+    pub async fn new<O: Into<ContextOptions> + Clone>(addr: Uri, opts: O) -> Self {
         let client = Client::new(addr, opts, HaClusterRpcClient::new).await;
         Self { inner: client }
     }
@@ -81,7 +81,7 @@ pub struct NodeAgentClient {
 
 impl NodeAgentClient {
     /// creates a new base tonic endpoint with the timeout options and the address
-    pub async fn new<O: Into<Option<TimeoutOptions>>>(addr: Uri, opts: O) -> Self {
+    pub async fn new<O: Into<ContextOptions> + Clone>(addr: Uri, opts: O) -> Self {
         let client = Client::new(addr, opts, HaNodeRpcClient::new).await;
         Self { inner: client }
     }

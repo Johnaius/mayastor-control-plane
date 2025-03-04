@@ -8,7 +8,7 @@ use grpc::operations::{
 };
 use std::{collections::HashMap, time::Duration};
 use stor_port::{
-    transport_api::{ReplyErrorKind, ResourceKind},
+    transport_api::{ContextOptions, ReplyErrorKind, ResourceKind},
     types::v0::{
         openapi::{apis::specs_api::tower::client::direct::Specs, models, models::SpecStatus},
         store::nexus::NexusSpec,
@@ -281,7 +281,7 @@ async fn lazy_delete_shutdown_targets() {
     cluster.restart_core().await;
     // Wait for core service to restart.
     cluster
-        .node_service_liveness(None)
+        .node_service_liveness(ContextOptions::new(None, None))
         .await
         .expect("Should have restarted by now");
     let request = DestroyShutdownTargets::new(volume.uuid().clone(), None);
@@ -415,7 +415,7 @@ async fn volume_republish_nexus_recreation() {
 
     // Wait for control plane refresh.
     cluster
-        .node_service_liveness(None)
+        .node_service_liveness(ContextOptions::new(None, None))
         .await
         .expect("Service should have been live by now");
 

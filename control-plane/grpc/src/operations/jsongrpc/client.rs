@@ -6,7 +6,7 @@ use crate::{
 use serde_json::Value;
 use std::{ops::Deref, time::Duration};
 use stor_port::{
-    transport_api::{ReplyError, ReplyErrorKind, ResourceKind, TimeoutOptions},
+    transport_api::{ContextOptions, ReplyError, ReplyErrorKind, ResourceKind, TimeoutOptions},
     types::v0::transport::MessageIdVs,
 };
 use tonic::transport::Uri;
@@ -19,23 +19,22 @@ pub struct JsonGrpcClient {
 
 impl JsonGrpcClient {
     /// creates a new base tonic endpoint with the timeout options and the address
-    pub async fn new<O: Into<Option<TimeoutOptions>>>(addr: Uri, opts: O) -> Self {
+    pub async fn new<O: Into<ContextOptions> + Clone>(addr: Uri, opts: O) -> Self {
         let client = Client::new(addr, opts, json_grpc_client::JsonGrpcClient::new).await;
         Self { inner: client }
     }
     /// Try to wait until the JsonGrpc Service is ready, up to a timeout, by using the Probe method.
-    pub async fn wait_ready(&self, timeout_opts: Option<TimeoutOptions>) -> Result<(), ()> {
-        let timeout_opts = match timeout_opts {
+    pub async fn wait_ready<O: Into<ContextOptions> + Clone>(&self, opts: O) -> Result<(), ()> {
+        let mut context_opts: ContextOptions = opts.into();
+        let timeout_opts = match context_opts.timeout_options() {
             Some(opts) => opts,
             None => TimeoutOptions::new()
                 .with_req_timeout(Duration::from_millis(250))
                 .with_max_retries(10),
         };
+        context_opts = context_opts.with_timeout_opts(timeout_opts.clone());
         for attempt in 1..=timeout_opts.max_retries().unwrap_or_default() {
-            match self
-                .probe(Some(Context::new(Some(timeout_opts.clone()))))
-                .await
-            {
+            match self.probe(Some(Context::new(context_opts.clone()))).await {
                 Ok(true) => return Ok(()),
                 _ => {
                     let delay = std::time::Duration::from_millis(100);

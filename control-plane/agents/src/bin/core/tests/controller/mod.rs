@@ -1,6 +1,7 @@
 use deployer_cluster::{etcd_client::Client, *};
 use stor_port::{
     pstor::{etcd::Etcd, key_prefix_obj, ApiVersion, StorableObjectType, StoreKv, StoreObj},
+    transport_api::ContextOptions,
     types::v0::{
         openapi::models,
         store::registry::{ControlPlaneService, StoreLeaseOwner, StoreLeaseOwnerKey},
@@ -54,7 +55,7 @@ async fn bootstrap_registry() {
 
     // Wait for core service to restart.
     cluster
-        .node_service_liveness(None)
+        .node_service_liveness(ContextOptions::new(None, None))
         .await
         .expect("Should have restarted by now");
 
@@ -293,7 +294,7 @@ async fn etcd_pagination() {
 
     cluster.restart_core().await;
     cluster
-        .volume_service_liveness(None)
+        .volume_service_liveness(ContextOptions::new(None, None))
         .await
         .expect("Should have restarted by now");
 

@@ -1,11 +1,7 @@
 use anyhow::Context;
 use clap::ArgMatches;
 use once_cell::sync::OnceCell;
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-    time::Duration,
-};
+use std::{collections::HashMap, path::PathBuf, time::Duration};
 
 static CONFIG: OnceCell<CsiControllerConfig> = OnceCell::new();
 
@@ -103,7 +99,7 @@ impl CsiControllerConfig {
     }
 
     /// Path to the CA certificate file.
-    pub(crate) fn ca_certificate_path(&self) -> Option<&Path> {
-        self.ca_certificate_path.as_deref()
+    pub(crate) fn ca_certificate_path(&self) -> Option<&PathBuf> {
+        self.ca_certificate_path.as_ref()
     }
 }

@@ -11,7 +11,7 @@ use crate::{
     },
 };
 use stor_port::{
-    transport_api::{v0::AppNodes, ReplyError, ResourceKind, TimeoutOptions},
+    transport_api::{v0::AppNodes, ContextOptions, ReplyError, ResourceKind},
     types::v0::transport::{AppNode, Filter, MessageIdVs},
 };
 use tonic::transport::Uri;
@@ -25,7 +25,7 @@ pub struct AppNodeClient {
 
 impl AppNodeClient {
     /// Creates a new base tonic endpoint with the timeout options and the address.
-    pub async fn new<O: Into<Option<TimeoutOptions>> + Clone>(addr: Uri, opts: O) -> Self {
+    pub async fn new<O: Into<ContextOptions> + Clone>(addr: Uri, opts: O) -> Self {
         let ops_client = Client::new(addr.clone(), opts.clone(), AppNodeGrpcClient::new).await;
         let registration_client = Client::new(addr, opts, RegistrationClient::new).await;
         Self {

@@ -9,7 +9,7 @@ use crate::{
 };
 use std::{convert::TryFrom, ops::Deref};
 use stor_port::{
-    transport_api::{v0::Pools, ReplyError, ResourceKind, TimeoutOptions},
+    transport_api::{v0::Pools, ContextOptions, ReplyError, ResourceKind},
     types::v0::transport::{Filter, MessageIdVs, Pool},
 };
 use tonic::transport::Uri;
@@ -30,7 +30,7 @@ impl Deref for PoolClient {
 
 impl PoolClient {
     /// creates a new base tonic endpoint with the timeout options and the address
-    pub async fn new<O: Into<Option<TimeoutOptions>>>(addr: Uri, opts: O) -> Self {
+    pub async fn new<O: Into<ContextOptions> + Clone>(addr: Uri, opts: O) -> Self {
         let client = Client::new(addr, opts, PoolGrpcClient::new).await;
         Self { inner: client }
     }

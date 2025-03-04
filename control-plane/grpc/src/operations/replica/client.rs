@@ -19,7 +19,7 @@ use crate::operations::replica::traits::{
     CreateReplicaInfo, DestroyReplicaInfo, ResizeReplicaInfo, ShareReplicaInfo, UnshareReplicaInfo,
 };
 use stor_port::{
-    transport_api::{v0::Replicas, ReplyError, ResourceKind, TimeoutOptions},
+    transport_api::{v0::Replicas, ContextOptions, ReplyError, ResourceKind},
     types::v0::transport::{Filter, MessageIdVs, Replica},
 };
 
@@ -36,7 +36,7 @@ impl Deref for ReplicaClient {
 }
 impl ReplicaClient {
     /// creates a new base tonic endpoint with the timeout options and the address
-    pub async fn new<O: Into<Option<TimeoutOptions>>>(addr: Uri, opts: O) -> Self {
+    pub async fn new<O: Into<ContextOptions> + Clone>(addr: Uri, opts: O) -> Self {
         let client = Client::new(addr, opts, ReplicaGrpcClient::new).await;
         Self { inner: client }
     }

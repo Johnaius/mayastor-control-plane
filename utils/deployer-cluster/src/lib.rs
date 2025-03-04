@@ -10,7 +10,10 @@ use deployer_lib::{
 use opentelemetry::{global, KeyValue};
 use opentelemetry_sdk::{propagation::TraceContextPropagator, trace as sdktrace};
 
-use stor_port::{transport_api::TimeoutOptions, types::v0::transport};
+use stor_port::{
+    transport_api::{ContextOptions, TimeoutOptions},
+    types::v0::transport,
+};
 
 use clap::Parser;
 pub use composer::ImagePullPolicy;
@@ -187,30 +190,30 @@ impl Cluster {
         self.grpc_client.as_ref().unwrap()
     }
 
-    pub async fn new_grpc_client(&self, grpc_timeout: TimeoutOptions) -> CoreClient {
+    pub async fn new_grpc_client(&self, grpc_timeout: Option<TimeoutOptions>) -> CoreClient {
         let core_ip = self.composer.container_ip("core");
-        CoreClient::new(Uri::try_from(grpc_addr(core_ip)).unwrap(), grpc_timeout).await
+        let opts = ContextOptions::new(grpc_timeout.clone(), None);
+        CoreClient::new(Uri::try_from(grpc_addr(core_ip)).unwrap(), opts).await
     }
 
     /// volume service liveness checks whether the volume service responds to the
     /// liveliness probe(generally after restart of core agent), with the timeout and
     /// retry options specified
-    pub async fn volume_service_liveness(
+    pub async fn volume_service_liveness<O: Into<ContextOptions>>(
         &self,
-        timeout_opts: Option<TimeoutOptions>,
+        opts: O,
     ) -> Result<bool, ReplyError> {
         let client = self.grpc_client().volume();
-        let timeout_opts = match timeout_opts {
+        let mut context_opts: ContextOptions = opts.into();
+        let timeout_opts = match context_opts.timeout_options() {
             Some(opts) => opts,
             None => TimeoutOptions::new()
                 .with_req_timeout(Duration::from_millis(500))
                 .with_max_retries(20),
         };
+        context_opts = context_opts.with_timeout_opts(timeout_opts.clone());
         for x in 1..timeout_opts.max_retries().unwrap_or_default() {
-            match client
-                .probe(Some(Context::new(Some(timeout_opts.clone()))))
-                .await
-            {
+            match client.probe(Some(Context::new(context_opts.clone()))).await {
                 Ok(resp) => return Ok(resp),
                 Err(_) => {
                     tracing::debug!("Volume Service not available, Retrying ....{}", x);
@@ -226,23 +229,22 @@ impl Cluster {
     /// node service liveness checks whether the node service responds to the
     /// liveliness probe(generally after restart of core agent), with the timeout and
     /// retry options specified
-    pub async fn node_service_liveness(
+    pub async fn node_service_liveness<O: Into<ContextOptions>>(
         &self,
-        timeout_opts: Option<TimeoutOptions>,
+        opts: O,
     ) -> Result<bool, ReplyError> {
         let client = self.grpc_client().node();
-        let timeout_opts = match timeout_opts {
+        let mut context_opts: ContextOptions = opts.into();
+        let timeout_opts = match context_opts.timeout_options() {
             Some(opts) => opts,
             None => TimeoutOptions::new()
                 .with_req_timeout(Duration::from_millis(100))
                 .with_timeout_backoff(Duration::from_millis(25))
                 .with_max_retries(100),
         };
+        context_opts = context_opts.with_timeout_opts(timeout_opts.clone());
         for x in 1..timeout_opts.max_retries().unwrap_or_default() {
-            match client
-                .probe(Some(Context::new(Some(timeout_opts.clone()))))
-                .await
-            {
+            match client.probe(Some(Context::new(context_opts.clone()))).await {
                 Ok(resp) => return Ok(resp),
                 Err(_) => {
                     tracing::debug!("Node Service not available, Retrying ....{}", x);
@@ -389,7 +391,8 @@ impl Cluster {
         timeout_opts: Option<TimeoutOptions>,
     ) -> Result<bool, ReplyError> {
         self.restart_core().await;
-        self.volume_service_liveness(timeout_opts).await
+        self.volume_service_liveness(ContextOptions::new(timeout_opts, None))
+            .await
     }
 
     /// Replace the given old node with a new one from the idles.
@@ -537,7 +540,7 @@ impl Cluster {
             Some(
                 CoreClient::new(
                     Uri::try_from(grpc_addr(composer.container_ip("core"))).unwrap(),
-                    grpc_timeout.clone(),
+                    ContextOptions::new(Some(grpc_timeout.clone()), None),
                 )
                 .await,
             )
@@ -1192,7 +1195,7 @@ impl Pool {
 }
 
 fn grpc_addr(ip: String) -> String {
-    format!("https://{ip}:50051")
+    format!("http://{ip}:50051")
 }
 
 /// Bundles both the csi and the internal node service.

@@ -138,6 +138,16 @@ pub(crate) struct CliArgs {
     /// Use ANSI colors for the logs.
     #[clap(long, default_value_t = true, action = clap::ArgAction::Set)]
     ansi_colors: bool,
+
+    /// Path for the agent's certificate to be used for TLS
+    #[structopt(long)]
+    tls_server_cert_path: Option<String>,
+    /// Path for the agent's private key to be used for TLS
+    #[structopt(long)]
+    tls_server_key_path: Option<String>,
+    /// Path for the io-engine's ca to be added to trust store
+    #[structopt(long)]
+    tls_client_ca_path: Option<String>,
 }
 impl CliArgs {
     fn args() -> Self {
@@ -193,6 +203,7 @@ async fn main() -> anyhow::Result<()> {
 
 async fn server(cli_args: CliArgs) -> anyhow::Result<()> {
     stor_port::platform::init_cluster_info_or_panic().await;
+
     let registry = controller::registry::Registry::new(
         cli_args.cache_period.into(),
         cli_args.store.clone(),
@@ -217,7 +228,18 @@ async fn server(cli_args: CliArgs) -> anyhow::Result<()> {
     )
     .await?;
 
-    let service = agents::Service::builder()
+    let mut service_builder = agents::Service::builder();
+    // Configure and apply TLS if both cert and key are provided
+    if let (Some(cert_path), Some(key_path)) = (
+        cli_args.tls_server_cert_path.as_ref(),
+        cli_args.tls_server_key_path.as_ref(),
+    ) {
+        let tls_config = agents::Service::configure_tls(Some(cert_path), Some(key_path))?;
+        service_builder = service_builder.with_tls(tls_config)?;
+    }
+
+    // Now add shared state and services
+    let service = service_builder
         .with_shared_state(
             utils::tracing_telemetry::global::tracer_provider()
                 .tracer_builder("core-agent")

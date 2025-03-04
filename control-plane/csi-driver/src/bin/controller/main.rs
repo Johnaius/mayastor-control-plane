@@ -5,6 +5,8 @@ mod identity;
 mod pvwatcher;
 mod server;
 
+use std::path::PathBuf;
+
 use clap::{Arg, ArgMatches};
 use client::{ApiClientError, RestApiClient};
 use config::CsiControllerConfig;
@@ -134,6 +136,7 @@ async fn main() -> anyhow::Result<()> {
         .arg(
             Arg::new("tls-client-ca-path")
                 .long("tls-client-ca-path")
+                .value_parser(clap::value_parser!(PathBuf))
                 .help("path to the CA certificate file")
         )
         .get_matches();

@@ -1,6 +1,6 @@
 use deployer_cluster::{Cluster, ClusterBuilder};
 use grpc::{
-    context::Context,
+    context::{Context, ContextOptions},
     operations::{
         node::traits::NodeOperations, pool::traits::PoolOperations,
         registry::traits::RegistryOperations, replica::traits::ReplicaOperations,
@@ -361,7 +361,10 @@ async fn replica_transaction() {
     let _ = rep_client
         .share(
             &ShareReplica::from(&replica),
-            Some(Context::new(grpc_timeout_opts())),
+            Some(Context::new(ContextOptions::new(
+                Some(grpc_timeout_opts()),
+                None,
+            ))),
         )
         .await
         .expect_err("io_engine down");
@@ -383,7 +386,10 @@ async fn replica_transaction() {
     let _ = rep_client
         .unshare(
             &UnshareReplica::from(&replica),
-            Some(Context::new(grpc_timeout_opts())),
+            Some(Context::new(ContextOptions::new(
+                Some(grpc_timeout_opts()),
+                None,
+            ))),
         )
         .await
         .expect_err("io_engine down");

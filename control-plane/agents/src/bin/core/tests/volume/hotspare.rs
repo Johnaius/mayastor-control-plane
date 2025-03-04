@@ -9,7 +9,7 @@ use grpc::operations::{
 use std::{collections::HashMap, convert::TryInto, time::Duration};
 use stor_port::{
     pstor::{etcd::Etcd, StorableObject, StoreObj},
-    transport_api::TimeoutOptions,
+    transport_api::{ContextOptions, TimeoutOptions},
     types::v0::{
         store::volume::VolumeSpec,
         transport::{
@@ -314,7 +314,7 @@ async fn hotspare_replica_count_spread(cluster: &Cluster) {
         .with_timeout_backoff(Duration::from_millis(50));
 
     cluster
-        .volume_service_liveness(Some(timeout_opts.clone()))
+        .volume_service_liveness(ContextOptions::new(Some(timeout_opts), None))
         .await
         .expect("Should have restarted by now");
 
@@ -475,7 +475,7 @@ async fn hotspare_nexus_replica_count(cluster: &Cluster) {
     cluster.restart_core().await;
 
     cluster
-        .volume_service_liveness(Some(timeout_opts.clone()))
+        .volume_service_liveness(ContextOptions::new(Some(timeout_opts.clone()), None))
         .await
         .expect("Should have restarted by now");
 
@@ -496,7 +496,7 @@ async fn hotspare_nexus_replica_count(cluster: &Cluster) {
     cluster.restart_core().await;
 
     cluster
-        .volume_service_liveness(Some(timeout_opts.clone()))
+        .volume_service_liveness(ContextOptions::new(Some(timeout_opts.clone()), None))
         .await
         .expect("Should have restarted by now");
 

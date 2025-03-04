@@ -3,6 +3,7 @@ use grpc::client::CoreClient;
 use http::Uri;
 use once_cell::sync::OnceCell;
 use std::net::SocketAddr;
+use stor_port::transport_api::ContextOptions;
 use tracing::info;
 use utils::{
     package_description,
@@ -96,7 +97,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialise the core client to be used in rest
     CORE_CLIENT
-        .set(CoreClient::new(cli.core_grpc, None).await)
+        .set(CoreClient::new(cli.core_grpc, ContextOptions::new(None, None)).await)
         .ok()
         .expect("Expect to be initialised only once");
 

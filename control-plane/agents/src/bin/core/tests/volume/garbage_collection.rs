@@ -7,17 +7,20 @@ use grpc::operations::{
     nexus::traits::NexusOperations, node::traits::NodeOperations, volume::traits::VolumeOperations,
 };
 use std::{collections::HashMap, convert::TryInto, time::Duration};
-use stor_port::types::v0::{
-    openapi::{
-        apis::{StatusCode, Uuid},
-        models,
-        models::PublishVolumeBody,
-        tower::client::Error,
-    },
-    store::{nexus::ReplicaUri, nexus_child::NexusChild},
-    transport::{
-        strip_queries, CreateNexus, CreateVolume, DestroyVolume, Filter, NexusId, PublishVolume,
-        ReplicaId, VolumeId, VolumeShareProtocol,
+use stor_port::{
+    transport_api::ContextOptions,
+    types::v0::{
+        openapi::{
+            apis::{StatusCode, Uuid},
+            models,
+            models::PublishVolumeBody,
+            tower::client::Error,
+        },
+        store::{nexus::ReplicaUri, nexus_child::NexusChild},
+        transport::{
+            strip_queries, CreateNexus, CreateVolume, DestroyVolume, Filter, NexusId,
+            PublishVolume, ReplicaId, VolumeId, VolumeShareProtocol,
+        },
     },
 };
 
@@ -184,7 +187,10 @@ async fn offline_replicas_reconcile(cluster: &Cluster, reconcile_period: Duratio
     // 4. restart the core-agent
     cluster.restart_core().await;
 
-    cluster.volume_service_liveness(None).await.unwrap();
+    cluster
+        .volume_service_liveness(ContextOptions::new(None, None))
+        .await
+        .unwrap();
     wait_till_volume_status(cluster, &volume.spec.uuid, models::VolumeStatus::Faulted).await;
 
     // 5. After the reconcilers run, replicas should not have been disowned

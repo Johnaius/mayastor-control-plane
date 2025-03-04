@@ -11,7 +11,8 @@ use std::{
     time::Duration,
 };
 use stor_port::{
-    transport_api::TimeoutOptions, types::v0::transport::cluster_agent::NodeAgentInfo,
+    transport_api::{ContextOptions, TimeoutOptions},
+    types::v0::transport::cluster_agent::NodeAgentInfo,
 };
 use tokio::net::UnixStream;
 use tonic::transport::{Channel, Endpoint};
@@ -145,7 +146,13 @@ async fn main() -> anyhow::Result<()> {
         .init("agent-ha-node");
 
     CLUSTER_AGENT_CLIENT
-        .set(ClusterAgentClient::new(cli_args.cluster_agent.clone(), None).await)
+        .set(
+            ClusterAgentClient::new(
+                cli_args.cluster_agent.clone(),
+                ContextOptions::new(None, None),
+            )
+            .await,
+        )
         .ok()
         .expect("Expect to be initialized only once");
 

@@ -260,7 +260,15 @@ impl SwitchOverRequest {
             return;
         };
         if let Some(new_path) = self.new_path.clone() {
-            let node_client = NodeAgentClient::new(uri, None).await;
+            let opts = grpc::context::ContextOptions {
+                timeout_options: Some(
+                    grpc::context::TimeoutOptions::new()
+                        .with_req_timeout(std::time::Duration::from_millis(100))
+                        .with_max_retries(Some(10)),
+                ),
+                tls_client_options: None,
+            };
+            let node_client = NodeAgentClient::new(uri, opts).await;
             let request = GetController::new(new_path);
             if let Err(error) = match node_client.get_nvme_controller(&request, None).await {
                 Ok(target_addresses) => {
@@ -418,7 +426,11 @@ impl SwitchOverRequest {
             new_path,
             self.publish_context.clone(),
         );
-        let client = NodeAgentClient::new(uri, None).await;
+        let opts = grpc::context::ContextOptions {
+            timeout_options: None,
+            tls_client_options: None,
+        };
+        let client = NodeAgentClient::new(uri, opts).await;
         match client.replace_path(&replace_request, None).await {
             Ok(_) => Ok(()),
             Err(error) if error.kind == ReplyErrorKind::FailedPrecondition => {

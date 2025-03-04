@@ -1,9 +1,12 @@
 use deployer_cluster::ClusterBuilder;
 use grpc::operations::node::traits::NodeOperations;
 use std::time::Duration;
-use stor_port::types::v0::{
-    store::node::{NodeLabels, NodeSpec},
-    transport::{ApiVersion, Filter, HostNqn, Node, NodeId, NodeState, NodeStatus},
+use stor_port::{
+    transport_api::ContextOptions,
+    types::v0::{
+        store::node::{NodeLabels, NodeSpec},
+        transport::{ApiVersion, Filter, HostNqn, Node, NodeId, NodeState, NodeStatus},
+    },
 };
 
 /// Get new `Node` from the given parameters
@@ -114,7 +117,7 @@ async fn node() {
     let node = nodes.0.first().cloned().unwrap();
     cluster.restart_core().await;
     cluster
-        .node_service_liveness(Some(rpc_timeout.clone()))
+        .node_service_liveness(ContextOptions::new(Some(rpc_timeout.clone()), None))
         .await
         .expect("Should have restarted by now");
 
@@ -136,7 +139,7 @@ async fn node() {
     cluster.composer().stop(maya_name.as_str()).await.unwrap();
     cluster.restart_core().await;
     cluster
-        .node_service_liveness(Some(rpc_timeout.clone()))
+        .node_service_liveness(ContextOptions::new(Some(rpc_timeout.clone()), None))
         .await
         .expect("Should have restarted by now");
 
@@ -167,7 +170,7 @@ async fn large_cluster() {
 
     cluster.restart_core().await;
     cluster
-        .node_service_liveness(None)
+        .node_service_liveness(ContextOptions::new(None, None))
         .await
         .expect("Should have restarted by now");
 

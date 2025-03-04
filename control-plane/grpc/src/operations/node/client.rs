@@ -14,7 +14,7 @@ use std::{collections::HashMap, convert::TryFrom, ops::Deref};
 use stor_port::{
     transport_api::{
         v0::{BlockDevices, Nodes},
-        ReplyError, ResourceKind, TimeoutOptions,
+        ContextOptions, ReplyError, ResourceKind,
     },
     types::v0::transport::{Filter, MessageIdVs, Node, NodeId},
 };
@@ -34,7 +34,7 @@ impl Deref for NodeClient {
 
 impl NodeClient {
     /// creates a new base tonic endpoint with the timeout options and the address
-    pub async fn new<O: Into<Option<TimeoutOptions>>>(addr: Uri, opts: O) -> Self {
+    pub async fn new<O: Into<ContextOptions> + Clone>(addr: Uri, opts: O) -> Self {
         let client = Client::new(addr, opts, NodeGrpcClient::new).await;
         Self { inner: client }
     }

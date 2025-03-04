@@ -1,6 +1,7 @@
 use crate::tracing::OpenTelClient;
+use http::uri::Scheme;
 use std::time::Duration;
-pub use stor_port::transport_api::TimeoutOptions;
+pub use stor_port::transport_api::{ContextOptions, TimeoutOptions, TlsClientOptions};
 use stor_port::{
     transport_api::{ClientId, MessageId},
     types::v0::transport::MessageIdVs,
@@ -91,19 +92,30 @@ pub fn timeout_grpc(op_id: MessageId, timeout_opts: TimeoutOptions) -> Duration 
 #[derive(Clone, Debug)]
 pub struct Context {
     timeout_opts: Option<TimeoutOptions>,
+    tls_client_opts: Option<TlsClientOptions>,
 }
 
 impl Context {
     /// Generate a new context with the provided `TimeoutOptions`.
-    pub fn new(timeout_opts: impl Into<Option<TimeoutOptions>>) -> Self {
+    pub fn new<T>(opts: T) -> Self
+    where
+        T: Into<ContextOptions> + Clone,
+    {
+        let ctx_opts: ContextOptions = opts.into();
         Self {
-            timeout_opts: timeout_opts.into(),
+            timeout_opts: ctx_opts.timeout_options(),
+            tls_client_opts: ctx_opts.tls_client_options(),
         }
     }
 
     /// Get the optional `TimeoutOptions`.
     pub fn timeout_opts(&self) -> Option<TimeoutOptions> {
         self.timeout_opts.clone()
+    }
+
+    /// Get the optional `TlsClientOptions`.
+    pub fn tls_client_opts(&self) -> Option<TlsClientOptions> {
+        self.tls_client_opts.clone()
     }
 
     /// Get the base timeout if specified, or `DEFAULT_REQ_TIMEOUT`.
@@ -172,11 +184,24 @@ impl<C: Clone> Client<C> {
     /// make_client: Creates a client of the appropriate type.
     pub(crate) async fn new<O, M>(uri: Uri, options: O, make_client: M) -> Self
     where
-        O: Into<Option<TimeoutOptions>>,
+        O: Into<ContextOptions> + Clone,
         M: FnOnce(TracedChannel) -> C,
     {
         let context = Context::new(options);
-        let endpoint = context.endpoint(uri);
+        let scheme = uri.scheme().unwrap_or(&Scheme::HTTP);
+        let mut endpoint = context.endpoint(uri.clone());
+        if scheme == &Scheme::HTTPS {
+            if let Some(tls_opts) = context.tls_client_opts() {
+                let ca_cert = std::fs::read_to_string(&tls_opts.ca_cert_path)
+                    .expect("Failed to read CA certificate");
+                let ca_cert = tonic::transport::Certificate::from_pem(ca_cert);
+                let tls_config = tonic::transport::ClientTlsConfig::new().ca_certificate(ca_cert);
+                endpoint = endpoint
+                    .tls_config(tls_config)
+                    .expect("Failed to configure TLS");
+            }
+        }
+
         let channel = endpoint.connect_lazy();
 
         let channel = tower::ServiceBuilder::new()

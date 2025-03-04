@@ -1,5 +1,8 @@
 use deployer_cluster::ClusterBuilder;
-use grpc::operations::{app_node::traits::AppNodeOperations, Pagination};
+use grpc::{
+    context::ContextOptions,
+    operations::{app_node::traits::AppNodeOperations, Pagination},
+};
 use stor_port::types::v0::transport::{DeregisterAppNode, Filter, RegisterAppNode};
 
 /// Test for registration, listing, retrieval, and deregistration of app nodes in a cluster.
@@ -85,7 +88,7 @@ async fn app_node_registration() {
     // Now restart core, to check if the app nodes are loaded from the database.
     cluster.restart_core().await;
     cluster
-        .node_service_liveness(None)
+        .node_service_liveness(ContextOptions::new(None, None))
         .await
         .expect("Should have restarted by now");
 
@@ -125,7 +128,7 @@ async fn app_node_registration() {
     // Restart core again, to check item removed from database.
     cluster.restart_core().await;
     cluster
-        .node_service_liveness(None)
+        .node_service_liveness(ContextOptions::new(None, None))
         .await
         .expect("Should have restarted by now");
 

@@ -18,7 +18,11 @@ use actix_web::{
     HttpServer,
 };
 use clap::Parser;
-use grpc::{client::CoreClient, operations::jsongrpc::client::JsonGrpcClient};
+use grpc::{
+    client::CoreClient,
+    context::{ContextOptions, TlsClientOptions},
+    operations::jsongrpc::client::JsonGrpcClient,
+};
 use http::Uri;
 use rustls::{pki_types::PrivateKeyDer, ServerConfig};
 use rustls_pemfile::{certs, rsa_private_keys};
@@ -57,6 +61,9 @@ pub(crate) struct CliArgs {
     /// Path to the key file.
     #[clap(long, short, required_unless_present = "dummy_certificates")]
     key_file: Option<String>,
+    /// Path to CA cert for authenicating with agent-core
+    #[structopt(long)]
+    tls_client_ca_path: Option<String>,
 
     /// Use dummy HTTPS certificates (for testing).
     #[clap(long, short, required_unless_present = "cert_file")]
@@ -122,6 +129,15 @@ fn timeout_opts() -> TimeoutOptions {
     }
 }
 
+fn tls_client_opts() -> Option<TlsClientOptions> {
+    CliArgs::args()
+        .tls_client_ca_path
+        .map(|ca_cert_path| TlsClientOptions { ca_cert_path })
+}
+
+fn context_opts() -> grpc::context::ContextOptions {
+    ContextOptions::new(Some(timeout_opts()), tls_client_opts())
+}
 /// Extension trait for actix-web applications.
 pub trait OpenApiExt<T> {
     /// configures the App with this version's handlers and openapi generation
@@ -233,9 +249,11 @@ async fn main() -> anyhow::Result<()> {
         .with_tracing_tags(cli_args.tracing_tags.clone())
         .init("rest-server");
 
+    let opts = context_opts();
+
     // Initialize the core client to be used in rest
     CORE_CLIENT
-        .set(CoreClient::new(cli_args.core_grpc, timeout_opts()).await)
+        .set(CoreClient::new(cli_args.core_grpc, opts.clone()).await)
         .ok()
         .expect("Expect to be initialised only once");
 
@@ -256,7 +274,7 @@ async fn main() -> anyhow::Result<()> {
     // Initialize the json grpc client to be used in rest
     if let Some(json_grpc) = CliArgs::args().json_grpc {
         JSON_GRPC_CLIENT
-            .set(JsonGrpcClient::new(json_grpc, timeout_opts()).await)
+            .set(JsonGrpcClient::new(json_grpc, opts).await)
             .ok()
             .expect("Expect to be initialised only once");
     }

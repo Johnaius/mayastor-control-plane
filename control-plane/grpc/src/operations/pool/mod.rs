@@ -19,7 +19,10 @@ mod test {
         sync::{Arc, Mutex},
         time::{Duration, Instant},
     };
-    use stor_port::{transport_api::TimeoutOptions, types::v0::transport::Filter};
+    use stor_port::{
+        transport_api::{ContextOptions, TimeoutOptions},
+        types::v0::transport::Filter,
+    };
     use tokio::sync::oneshot::Sender;
     use tonic::transport::Uri;
 
@@ -53,11 +56,17 @@ mod test {
         let (sender, receiver) = tokio::sync::oneshot::channel();
         *channel.lock().unwrap() = Some(sender);
 
-        let timeout_opts = TimeoutOptions::new().with_req_timeout(Duration::from_secs(10));
-        let client = PoolClient::new(uri, timeout_opts).await;
+        let context_opts = ContextOptions::new(
+            Some(TimeoutOptions::new().with_req_timeout(Duration::from_secs(10))),
+            None,
+        );
+        let client = PoolClient::new(uri, context_opts).await;
 
         let req_timeout = Duration::from_secs(1);
-        let ctx = Context::new(TimeoutOptions::new().with_req_timeout(req_timeout));
+        let ctx = Context::new(ContextOptions::new(
+            Some(TimeoutOptions::new().with_req_timeout(req_timeout)),
+            None,
+        ));
         let before = std::time::Instant::now();
         let result = client.get(Filter::None, Some(ctx)).await;
         let (complete, timestamp) = receiver.await.unwrap();

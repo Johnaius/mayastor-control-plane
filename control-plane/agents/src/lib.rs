@@ -9,8 +9,9 @@ use futures::Future;
 use grpc::tracing::OpenTelServer;
 use snafu::Snafu;
 use state::TypeMap;
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, path::Path, sync::Arc};
 use stor_port::transport_api::ErrorChain;
+use tonic::transport::ServerTlsConfig;
 
 mod common;
 /// Event definitions.
@@ -24,6 +25,8 @@ pub use common::errors;
 pub enum ServiceError {
     #[snafu(display("GrpcServer error"))]
     GrpcServer { source: tonic::transport::Error },
+    #[snafu(display("TLS error: {}", source))]
+    TlsError { source: std::io::Error },
 }
 
 type LayerStack = tower::layer::util::Stack<OpenTelServer, tower::layer::util::Identity>;
@@ -58,6 +61,39 @@ impl ServiceEmpty {
             tonic_server: self.tonic_server.add_service(svc),
         }
     }
+
+    /// Add TLS configuration to the service.
+    /// Must be called before adding any services.
+    ///
+    /// # Arguments
+    /// * `tls_config` - The TLS configuration to apply
+    ///
+    /// # Returns
+    /// * `Result<Self, ServiceError>` - The service with TLS configured
+    ///
+    /// # Example
+    /// ```
+    /// let service = Service::builder()
+    ///     .with_tls(tls_config)?
+    ///     .with_shared_state(state)
+    ///     .configure(my_config);
+    /// ```
+    pub fn with_tls(self, tls_config: Option<ServerTlsConfig>) -> Result<Self, ServiceError> {
+        let tonic_server = self
+            .tonic_server
+            .tls_config(tls_config.expect("TLS is not configured"))
+            .map_err(|e| ServiceError::TlsError {
+                source: std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to configure TLS: {}", e),
+                ),
+            })?;
+
+        Ok(Self {
+            shared_state: self.shared_state,
+            tonic_server,
+        })
+    }
 }
 
 impl Service {
@@ -71,6 +107,44 @@ impl Service {
                 // todo: add ignored routes via shared state
                 "/mayastor.v1.Registration/Register",
             ])),
+        }
+    }
+    /// Configure TLS for the service using certificate and key files.
+    /// # Arguments
+    /// * `cert_path` - Optional path to the TLS certificate file
+    /// * `key_path` - Optional path to the TLS private key file
+    /// # Returns
+    /// * `Ok(Some(ServerTlsConfig))` - When TLS is successfully configured
+    /// * `Ok(None)` - When no TLS configuration is requested
+    /// * `Err(ServiceError)` - If TLS configuration fails
+    /// # Errors
+    /// Returns a `ServiceError` if:
+    /// - Only one of cert/key is provided
+    /// - Certificate or key files cannot be read
+    /// - TLS configuration is invalid
+    pub fn configure_tls<P: AsRef<Path>>(
+        cert_path: Option<P>,
+        key_path: Option<P>,
+    ) -> Result<Option<ServerTlsConfig>, ServiceError> {
+        match (cert_path, key_path) {
+            (Some(cert), Some(key)) => {
+                // Read certificate file
+                let cert_data = std::fs::read(cert.as_ref())
+                    .map_err(|source| ServiceError::TlsError { source })?;
+                // Read key file
+                let key_data = std::fs::read(key.as_ref())
+                    .map_err(|source| ServiceError::TlsError { source })?;
+                // Create TLS config
+                let identity = tonic::transport::Identity::from_pem(cert_data, key_data);
+                let tls_config = ServerTlsConfig::new().identity(identity);
+
+                Ok(Some(tls_config))
+            }
+            //if no cert or key provide erorr message that cert and key are required
+            (None, _) | (_, None) => {
+                tracing::warn!("TLS is not configured, both cert and key are required");
+                Ok(None)
+            }
         }
     }
 

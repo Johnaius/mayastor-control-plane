@@ -86,7 +86,7 @@ pub const LOKI_PORT: &str = "http-metrics";
 pub const DEFAULT_GRPC_SERVER_ADDR: &str = "[::]:50051";
 
 /// The default value to be assigned as GRPC client addr if not overridden.
-pub const DEFAULT_GRPC_CLIENT_ADDR: &str = "https://core:50051";
+pub const DEFAULT_GRPC_CLIENT_ADDR: &str = "http://core:50051";
 
 /// The default value to be assigned as JSON GRPC server addr if not overridden.
 pub const DEFAULT_JSON_GRPC_SERVER_ADDR: &str = "[::]:50052";

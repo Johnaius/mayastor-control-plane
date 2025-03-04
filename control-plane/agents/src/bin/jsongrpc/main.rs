@@ -3,7 +3,9 @@ mod service;
 use crate::service::JsonGrpcSvc;
 use agents::{Service, ServiceError};
 use clap::Parser;
-use grpc::{client::CoreClient, operations::jsongrpc::server::JsonGrpcServer};
+use grpc::{
+    client::CoreClient, context::ContextOptions, operations::jsongrpc::server::JsonGrpcServer,
+};
 use http::Uri;
 use once_cell::sync::OnceCell;
 use std::{net::SocketAddr, sync::Arc};
@@ -33,7 +35,7 @@ async fn main() {
     let grpc_addr = &cli_args.core_grpc;
     // Initialise the core client to be used in rest
     CORE_CLIENT
-        .set(CoreClient::new(grpc_addr.clone(), None).await)
+        .set(CoreClient::new(grpc_addr.clone(), ContextOptions::new(None, None)).await)
         .ok()
         .expect("Expect to be initialised only once");
 
